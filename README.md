@@ -1,5 +1,10 @@
 # dremio-profile-extract
 
+Usage:
+python ./dremio-profile-extract.py -u <ADMIN_USER> -p <ADMIN_PASSWORD>
+
+Note: -u and -p are required, all other parameters are optional or have a default value.
+
 dremio-profile-extract.py <options below>
    -h, --help
    -c, --accept_all_certs
