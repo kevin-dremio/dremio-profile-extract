@@ -6,6 +6,7 @@ import re
 import json
 import zipfile
 
+
 def main():
     global profiles_dir, username, password, output_format, start_time, end_time, delim, dremio_bin_dir, reprocess, output_type, write_mode, accept_all_certs
     profiles_dir = "/tmp/dremio/profiles/"  # -o or --profiles_dir
@@ -23,7 +24,10 @@ def main():
     # print 'Number of args:', len(sys.argv)
     # print 'Argument List:', str(sys.argv)
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:u:p:f:s:e:d:b:raw", ["help", "profiles_dir=", "username=", "password=", "output_format=", "start_time=", "end_time=", "delim=", "dremio_bin_dir=", "reprocess", "output_type=", "write_mode="])
+        opts, args = getopt.getopt(sys.argv[1:], "ho:u:p:f:s:e:d:b:raw",
+                                   ["help", "profiles_dir=", "username=", "password=", "output_format=", "start_time=",
+                                    "end_time=", "delim=", "dremio_bin_dir=", "reprocess", "output_type=",
+                                    "write_mode="])
     except getopt.GetoptError:
         print_usage()
         sys.exit(2)
@@ -41,7 +45,7 @@ def main():
             if arg in ("ZIP", "JSON"):
                 output_format = arg
             else:
-                print '--output_format must be <ZIP, JSON>'
+                print ('--output_format must be <ZIP, JSON>')
                 exit(2)
         elif opt in ("-s", "--start_time"):
             start_time = arg
@@ -61,21 +65,25 @@ def main():
             if arg in ("FAIL_IF_EXISTS", "OVERWRITE", "EXISTS"):
                 write_mode = arg
             else:
-                print '--write_mode must be <FAIL_IF_EXISTS, OVERWRITE, SKIP>'
+                print ('--write_mode must be <FAIL_IF_EXISTS, OVERWRITE, SKIP>')
                 exit(2)
 
     output_dir = export_profiles() if reprocess else profiles_dir
-    output_filename = output_dir.rstrip('/') + ".csv"
+    # output_filename = output_dir.rstrip('/') + ".csv"
+    output_filename = profiles_dir + "audit_log" + ".csv"
     file_list = get_files(output_dir)
     # print(file_list)
-    zip_file = output_dir + file_list[0]
-    zip_file_crc = output_dir + file_list[1]
-    if zip_file.endswith('.zip'):
-        with zipfile.ZipFile(output_dir + file_list[0], 'r') as zip_ref:
-            zip_ref.extractall(output_dir)
-        os.remove(zip_file)
-        os.remove(zip_file_crc)
-        file_list = get_files(output_dir)
+    zi = 0
+    for z_files in file_list[::2]:
+        zip_file = output_dir + file_list[zi]
+        zip_file_crc = output_dir + file_list[zi + 1]
+        if zip_file.endswith('.zip'):
+            with zipfile.ZipFile(output_dir + file_list[zi], 'r') as zip_ref:
+                zip_ref.extractall(output_dir)
+            os.remove(zip_file)
+            os.remove(zip_file_crc)
+            zi = zi + 2
+    file_list = get_files(output_dir)
     output_file = open(output_filename, output_type)
     for f_profile in file_list:
         data = file_disk(output_dir, f_profile)
@@ -101,32 +109,32 @@ def main():
 
 
 def print_usage():
-    print '\n' \
-          'dremio-profile-extract.py <options below>\n' \
-          '   -h, --help\n' \
-          '   -c, --accept_all_certs\n' \
-          '      accept all ssl certificates\n' \
-          '      Default: False\n' \
-          '   -o, --output_dir <profile output dir> (default: /tmp/dremio/profiles/)\n' \
-          '   -b, --dremio_bin_dir <Dremio bin directory> (default: /opt/dremio/bin)\n' \
-          '   -u, --username <admin username> (required)\n' \
-          '   -p, --password <admin password> (required)\n' \
-          '   -f, --output_format <ZIP or JSON> (default: ZIP)\n' \
-          '   -s, --start_time <yyyy-mm-ddThh:mm:ss>\n' \
-          '       Export profiles beginning from this date inclusively (job_end_time >=\n' \
-          '       toDate).Example: 2011-12-03T10:15:30\n' \
-          '   -e, --end_time <yyyy-mm-ddThh:mm:ss>\n' \
-          '       Export profiles ending by this date exclusively (job_end_time <\n' \
-          '       toDate).Example: 2011-12-03T10:15:30\n' \
-          '   -d, --delim  <\\t (tab) , | (pipe), or any character> (default: \\t)\n' \
-          '   -r  suppresses reprocessing of profile extract (same as --no_reprocess True)  (default: False)\n ' \
-          '   --no_reprocess <True, False> (default: False)\n' \
-          '   -a  Appends to profile extract file\n' \
-          '   -w  Overwrites profile extract file (default)\n' \
-          '   --output_type <w, a> (default: w)\n' \
-          '   --write-mode\n' \
-          '     Specifies how we should handle a case, when target file already exists.\n' \
-          '     Default: OVERWRITE Possible Values: [FAIL_IF_EXISTS, OVERWRITE, SKIP]\n'
+    print ('\n'
+           'dremio-profile-extract.py <options below>\n'
+           '   -h, --help\n'
+           '   -c, --accept_all_certs\n'
+           '       accept all ssl certificates\n'
+           '       Default: False\n'
+           '   -o, --output_dir <profile output dir> (default: /tmp/dremio/profiles/)\n'
+           '   -b, --dremio_bin_dir <Dremio bin directory> (default: /opt/dremio/bin)\n'
+           '   -u, --username <admin username> (required)\n'
+           '   -p, --password <admin password> (required)\n'
+           '   -f, --output_format <ZIP or JSON> (default: ZIP)\n'
+           '   -s, --start_time <yyyy-mm-ddThh:mm:ss>\n'
+           '       Export profiles beginning from this date inclusively (job_end_time >=\n'
+           '       toDate).Example: 2011-12-03T10:15:30\n'
+           '   -e, --end_time <yyyy-mm-ddThh:mm:ss>\n'
+           '       Export profiles ending by this date exclusively (job_end_time <\n'
+           '       toDate).Example: 2011-12-03T10:15:30\n'
+           '   -d, --delim  <\\t (tab) , | (pipe), or any character> (default: \\t)\n'
+           '   -r  suppresses reprocessing of profile extract (same as --no_reprocess True)  (default: False)\n'
+           '   --no_reprocess <True, False> (default: False)\n'
+           '   -a  Appends to profile extract file\n'
+           '   -w  Overwrites profile extract file (default)\n'
+           '   --output_type <w, a> (default: w)\n'
+           '   --write-mode\n'
+           '     Specifies how we should handle a case, when target file already exists.\n'
+           '     Default: OVERWRITE Possible Values: [FAIL_IF_EXISTS, OVERWRITE, SKIP]\n')
 
 
 def update_output(output_dir, filename):
@@ -147,16 +155,23 @@ def file_disk(output_dir, filename):
 def export_profiles():
     # print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -u '" + username + "' -p '" + password + "' --output '" + profiles_dir + "'")
     ret_val = subprocess.Popen(
-        [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u", username, "-p", password, "--output", profiles_dir, "--format", output_format, "--write_mode=", write_mode, '-c', accept_all_certs],
+        [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u", username,
+         "-p", password, "--output", profiles_dir],
         stdout=subprocess.PIPE)
+#    ret_val = subprocess.Popen(
+#        [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u", username,
+#         "-p", password, "--output", profiles_dir, "--format", output_format, "--write_mode=", write_mode, '-c',
+#         accept_all_certs],
+#         stdout=subprocess.PIPE
+#    )
     ret_val.wait()
     ret_string = ret_val.communicate()[0]
     # print ("ret_string: " + ret_string)
     ret_str_array = ret_string.splitlines()
     # print(ret_str_array[0])
-    num_profiles = re.search('processed: (.*?),', ret_str_array[0]).group(1)
+    num_profiles = re.search('processed: (.*?),', ret_str_array[0].decode()).group(1)
     print("Number of profiles processed: " + num_profiles)
-    profile_dir = re.search('path: (.*)$', ret_str_array[1]).group(1)
+    profile_dir = re.search('path: (.*)$', ret_str_array[1].decode()).group(1)
     # print(profile_dir)
     return profile_dir
 
