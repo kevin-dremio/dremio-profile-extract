@@ -8,8 +8,9 @@ import zipfile
 
 
 def main():
-    global profiles_dir, username, password, output_format, start_time, end_time, delim, dremio_bin_dir, reprocess, output_type, write_mode, accept_all_certs
+    global profiles_dir, username, password, output_format, start_time, end_time, delim, dremio_bin_dir, reprocess, output_type, write_mode, accept_all_certs, connection_type
     profiles_dir = "/tmp/dremio/profiles/"  # -o or --profiles_dir
+    connection_type = "" # -l or --local-attach
     username = ""  # -u or --username
     password = ""  # -p or --password
     output_format = "ZIP"  # -f or --output_format (ZIP or JSON)
@@ -24,8 +25,8 @@ def main():
     # print 'Number of args:', len(sys.argv)
     # print 'Argument List:', str(sys.argv)
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:u:p:f:s:e:d:b:raw",
-                                   ["help", "profiles_dir=", "username=", "password=", "output_format=", "start_time=",
+        opts, args = getopt.getopt(sys.argv[1:], "hlo:u:p:f:s:e:d:b:raw",
+                                   ["help", "connection_type=", "profiles_dir=", "username=", "password=", "output_format=", "start_time=",
                                     "end_time=", "delim=", "dremio_bin_dir=", "reprocess", "output_type=",
                                     "write_mode="])
     except getopt.GetoptError:
@@ -35,6 +36,8 @@ def main():
         if opt in ('-h', "--help"):
             print_usage()
             sys.exit()
+        elif opt in ("-l", "--local-attach"):
+            connection_type = '-l'
         elif opt in ("-o", "--profiles_dir"):
             profiles_dir = arg
         elif opt in ("-u", "--username"):
@@ -106,6 +109,7 @@ def main():
                         data_source_num = data_source_num + 1
         os.remove(os.path.join(output_dir, f_profile))
     output_file.close()
+    os.chmod(output_filename, 0o777)
 
 
 def print_usage():
@@ -116,9 +120,10 @@ def print_usage():
            '       accept all ssl certificates\n'
            '       Default: False\n'
            '   -o, --output_dir <profile output dir> (default: /tmp/dremio/profiles/)\n'
+           '   -l, --local-attach (Cannot be used with Username and Password)\n'
            '   -b, --dremio_bin_dir <Dremio bin directory> (default: /opt/dremio/bin)\n'
-           '   -u, --username <admin username> (required)\n'
-           '   -p, --password <admin password> (required)\n'
+           '   -u, --username <admin username> (required unless using -l)\n'
+           '   -p, --password <admin password> (required unless using -l)\n'
            '   -f, --output_format <ZIP or JSON> (default: ZIP)\n'
            '   -s, --start_time <yyyy-mm-ddThh:mm:ss>\n'
            '       Export profiles beginning from this date inclusively (job_end_time >=\n'
@@ -145,6 +150,10 @@ def get_files(output_dir):
     only_files = [f for f in os.listdir(output_dir) if os.path.isfile(os.path.join(output_dir, f))]
     return only_files
 
+def get_dir(output_dir):
+    only_dir = [d for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
+    return only_dir
+
 
 def file_disk(output_dir, filename):
     # print(output_dir, filename)
@@ -153,26 +162,22 @@ def file_disk(output_dir, filename):
 
 
 def export_profiles():
-    # print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -u '" + username + "' -p '" + password + "' --output '" + profiles_dir + "'")
-    ret_val = subprocess.Popen(
-        [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u", username,
-         "-p", password, "--output", profiles_dir],
-        stdout=subprocess.PIPE)
-#    ret_val = subprocess.Popen(
-#        [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u", username,
-#         "-p", password, "--output", profiles_dir, "--format", output_format, "--write_mode=", write_mode, '-c',
-#         accept_all_certs],
-#         stdout=subprocess.PIPE
-#    )
-    ret_val.wait()
-    ret_string = ret_val.communicate()[0]
-    # print ("ret_string: " + ret_string)
-    ret_str_array = ret_string.splitlines()
-    # print(ret_str_array[0])
-    num_profiles = re.search('processed: (.*?),', ret_str_array[0].decode()).group(1)
-    print("Number of profiles processed: " + num_profiles)
-    profile_dir = re.search('path: (.*)$', ret_str_array[1].decode()).group(1)
-    # print(profile_dir)
+    if connection_type == '-l':
+        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -l  --output '" + profiles_dir + "'")
+        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-l ", " --output", profiles_dir], stdout=subprocess.PIPE)
+        ret_val.wait()
+        profile_dir = profiles_dir + get_dir(profiles_dir)[0]+ '/'
+
+    else:
+        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -u '" + username + "' -p '" + password + "' --output '" + profiles_dir + "'")
+        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u ", username, "-p ", password, " --output", profiles_dir], stdout=subprocess.PIPE)
+        ret_val.wait()
+        ret_string = ret_val.communicate()[0]
+        ret_str_array = ret_string.splitlines()
+        num_profiles = re.search('processed: (.*?),', ret_str_array[0].decode()).group(1)
+        print("Number of profiles processed: " + num_profiles)
+        profile_dir = re.search('path: (.*)$', ret_str_array[1].decode()).group(1)
+    os.chmod(profile_dir, 0o777)
     return profile_dir
 
 
