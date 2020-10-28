@@ -17,7 +17,7 @@ def main():
     password = ""  # -p or --password
     output_format = "ZIP"  # -f or --output_format (ZIP or JSON)
     start_time = "1990-01-01T00:00:00"  # -s or --start_time (yyyy-mm-ddThh:mm:ss)
-    end_time = "2099-12-31T23:59:59"  # -e or --end_time (yyyy-mm-ddThh:mm:ss)
+    end_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")  # -e or --end_time (yyyy-mm-ddThh:mm:ss)
     delim = "\t"  # -d or --delim  ("\t", "|")
     dremio_bin_dir = "/opt/dremio/bin/"  # -b or --dremio_bin_dir
     reprocess = True  # -r or --no_reprocess (True, False)
@@ -43,7 +43,6 @@ def main():
             sys.exit()
         elif opt in ("-i", "--incremental"):
             start_time = set_times_from_log(output_log)
-            end_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             print (start_time, end_time)
         elif opt in ("-l", "--local-attach"):
             connection_type = '-l'
