@@ -6,13 +6,14 @@ import re
 import json
 import zipfile
 from datetime import datetime
+import time
 from pprint import pprint
 
 
 def main():
     global profiles_dir, username, password, output_format, start_time, end_time, delim, dremio_bin_dir, reprocess, output_type, write_mode, accept_all_certs, connection_type, output_log
     profiles_dir = "/tmp/dremio/profiles/"  # -o or --profiles_dir
-    connection_type = "" # -l or --local-attach
+    connection_type = ""  # -l or --local-attach
     username = ""  # -u or --username
     password = ""  # -p or --password
     output_format = "ZIP"  # -f or --output_format (ZIP or JSON)
@@ -27,9 +28,11 @@ def main():
     output_log = profiles_dir + "audit_history.log"
     # print 'Number of args:', len(sys.argv)
     # print 'Argument List:', str(sys.argv)
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hlo:u:p:f:s:e:d:b:rawi",
-                                   ["help", "connection_type=", "profiles_dir=", "username=", "password=", "output_format=", "start_time=",
+                                   ["help", "connection_type=", "profiles_dir=", "username=", "password=",
+                                    "output_format=", "start_time=",
                                     "end_time=", "delim=", "dremio_bin_dir=", "reprocess", "output_type=",
                                     "write_mode=", "incremental"])
     except getopt.GetoptError:
@@ -96,15 +99,28 @@ def main():
     file_list = get_files(output_dir, ".JSON")
     num_profiles = len(file_list)
     output_file = open(output_filename, output_type)
-    output_file.write("job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "user_name" + delim + "source_num" + delim + "table_name_list" + delim + "column_name_list" + '\n')
+    output_file.write(
+        "job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "user_name" + delim + "source_num" + delim + "table_name_list" + delim + "column_name_list" + '\n')
     for f_profile in file_list:
         output_str = ""
         data = file_disk(output_dir, f_profile)
         job_id = re.search('profile_(.+?).JSON', f_profile).group(1)
         j_user_name = data["user"]
-        j_start_time = str(data["start"])
-        j_end_time = str(data["end"])
-        job_state = str(data["state"])
+        # j_start_time = str(data["start"])
+        # j_start_time = datetime.datetime.fromtimestamp(data["start"]/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        j_start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["start"] / 1000.0))
+        # j_end_time = str(data["end"])
+        # j_end_time = datetime.datetime.fromtimestamp(data["end"]/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        j_end_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["end"] / 1000.0))
+        # job_state = str(data["state"])
+        #print (data["state"])
+        #job_state = str(data["state"])
+        job_state = {0: 'Planning',
+                    1: 'Unknown',
+                    2: 'Completed',
+                    3: 'Cancelled',
+                    4: 'Error'}.get(data["state"], 'Unknown')
+
         # query_type = data["resourceSchedulingProfile"]
         #   verbose_error = str(data["verboseError"])
         # print (query_type)
@@ -117,8 +133,10 @@ def main():
                 for xsr in xs:
                     if "table=[" in xsr.strip():
                         query_def = xsr.strip()
-                        rel_table_name_list = [re.search('table=(.+?)],', query_def).group(1) + ']' in range(rel_data_source_num)]
-                        rel_column_name_list = [re.search('columns=(.+?)],', query_def).group(1) + ']' in range(rel_data_source_num)]
+                        rel_table_name_list = [
+                            re.search('table=(.+?)],', query_def).group(1) + ']' in range(rel_data_source_num)]
+                        rel_column_name_list = [
+                            re.search('columns=(.+?)],', query_def).group(1) + ']' in range(rel_data_source_num)]
                         #                    print(job_id+'|'+start_time+'|'+user_name+'|'+str(data_source_num)+'|'+table_name_list+'|'+column_name_list)
                         # output_file.write(job_id + delim + start_time + delim + end_time + delim + job_state + delim + user_name + delim + str(
                         #     data_source_num) + delim + table_name_list + delim + column_name_list + '\n')
@@ -132,7 +150,7 @@ def main():
                         table_name_list = re.search('table=(.+?)],', query_def).group(1) + ']'
                         column_name_list = re.search('columns=(.+?)],', query_def).group(1) + ']'
                         #                    print(job_id+'|'+start_time+'|'+user_name+'|'+str(data_source_num)+'|'+table_name_list+'|'+column_name_list)
-                        output_str =  output_str + job_id + delim + j_start_time + delim + j_end_time + delim + job_state + delim + j_user_name + delim + str(
+                        output_str = output_str + job_id + delim + j_start_time + delim + j_end_time + delim + job_state + delim + j_user_name + delim + str(
                             data_source_num) + delim + table_name_list + delim + column_name_list + '\n'
                         data_source_num = data_source_num + 1
         output_file.write(output_str)
@@ -177,6 +195,7 @@ def print_usage():
            '     Specifies how we should handle a case, when target file already exists.\n'
            '     Default: OVERWRITE Possible Values: [FAIL_IF_EXISTS, OVERWRITE, SKIP]\n')
 
+
 def set_times_from_log(log_file):
     if os.path.exists(log_file):
         with open(log_file, 'r') as lf:
@@ -191,12 +210,16 @@ def set_times_from_log(log_file):
         output_log_file.close()
     return (last_end_time)
 
+
 def update_output(output_dir, filename):
     return os.path.join(output_dir, filename) if filename else None
 
+
 def get_files(output_dir, f_type):
-    only_files = [f for f in os.listdir(output_dir) if os.path.isfile(os.path.join(output_dir, f)) and f.endswith(f_type)]
+    only_files = [f for f in os.listdir(output_dir) if
+                  os.path.isfile(os.path.join(output_dir, f)) and f.endswith(f_type)]
     return only_files
+
 
 def get_dir(output_dir):
     only_dir = [d for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
@@ -211,16 +234,21 @@ def file_disk(output_dir, filename):
 
 def export_profiles():
     if connection_type == '-l':
-#        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -l  --output '" + profiles_dir + "'")
-        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-l ", " --output", profiles_dir], stdout=subprocess.PIPE)
+        #        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -l  --output '" + profiles_dir + "'")
+        ret_val = subprocess.Popen(
+            [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-l ",
+             " --output", profiles_dir], stdout=subprocess.PIPE)
         ret_val.wait()
     else:
-#        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -u '" + username + "' -p '" + password + "' --output '" + profiles_dir + "'")
-        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u ", username, "-p ", password, " --output", profiles_dir], stdout=subprocess.PIPE)
+        #        print(dremio_bin_dir + "dremio-admin export-profiles --from '" + start_time + "' --to '" + end_time + "' -u '" + username + "' -p '" + password + "' --output '" + profiles_dir + "'")
+        ret_val = subprocess.Popen(
+            [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u ",
+             username, "-p ", password, " --output", profiles_dir], stdout=subprocess.PIPE)
         ret_val.wait()
         ret_string = ret_val.communicate()[0]
-    return profiles_dir + get_dir(profiles_dir)[0]+ '/'
+    return profiles_dir + get_dir(profiles_dir)[0] + '/'
 
 
 if __name__ == "__main__":
     main()
+
