@@ -6,6 +6,7 @@ import re
 import json
 import zipfile
 from datetime import datetime
+import time
 from pprint import pprint
 
 
@@ -95,7 +96,7 @@ def main():
     file_list = get_files(output_dir, ".JSON")
     num_profiles = len(file_list)
     output_file = open(output_filename, output_type)
-    output_file.write("job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "error" + delim + "user_name" + delim + "query_type" + delim + "source_list"  + delim + "source_num" + delim + "parent_name_list" + delim + "table_name_list" + delim + "column_name_list" + '\n')
+    output_file.write("job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "error" + delim + "user_name" + delim + "query_type" + delim + "source_num" + delim + "parent_name_list" + delim + "table_name_list" + delim + "column_name_list" + '\n')
     l = 0
     for f_profile in file_list:
         l = l + 1
@@ -103,7 +104,11 @@ def main():
         data = file_disk(output_dir, f_profile)
         job_id = re.search('profile_(.+?).JSON', f_profile).group(1)
         j_user_name = data["user"]
-        j_start_time = str(data["start"])
+        # j_start_time = str(data["start"])
+        j_start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["start"] / 1000.0))
+        # j_end_time = str(data["end"])
+        # j_end_time = datetime.datetime.fromtimestamp(data["end"]/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        j_end_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["end"] / 1000.0))
         j_end_time = str(data["end"])
         job_state_num = data["state"]
         if job_state_num == 2:
