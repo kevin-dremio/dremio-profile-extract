@@ -13,12 +13,14 @@ from pprint import pprint
 def main():
     global profiles_dir, username, password, output_format, start_time, end_time, delim, dremio_bin_dir, reprocess, output_type, write_mode, accept_all_certs, connection_type, output_log
     profiles_dir = "/tmp/dremio/profiles/"  # -o or --profiles_dir
-    connection_type = "" # -l or --local-attach
+    connection_type = ""  # -l or --local-attach
     username = ""  # -u or --username
     password = ""  # -p or --password
     output_format = "ZIP"  # -f or --output_format (ZIP or JSON)
     start_time = "1990-01-01T00:00:00"  # -s or --start_time (yyyy-mm-ddThh:mm:ss)
-    end_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")  # -e or --end_time (yyyy-mm-ddThh:mm:ss)
+    end_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")  # -e or --end_time (yyyy-mm-ddThh:mm:ss)
+#    end_time = "2099-01-01T00:00:00"  # -s or --start_time (yyyy-mm-ddThh:mm:ss)
+
     delim = "\t"  # -d or --delim  ("\t", "|")
     dremio_bin_dir = "/opt/dremio/bin/"  # -b or --dremio_bin_dir
     reprocess = True  # -r or --no_reprocess (True, False)
@@ -28,7 +30,8 @@ def main():
     output_log = profiles_dir + "audit_history.log"
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hlo:u:p:f:s:e:d:b:rawi",
-                                   ["help", "connection_type=", "profiles_dir=", "username=", "password=", "output_format=", "start_time=",
+                                   ["help", "connection_type=", "profiles_dir=", "username=", "password=",
+                                    "output_format=", "start_time=",
                                     "end_time=", "delim=", "dremio_bin_dir=", "reprocess", "output_type=",
                                     "write_mode=", "incremental"])
     except getopt.GetoptError:
@@ -82,22 +85,22 @@ def main():
     output_filename = profiles_dir + "audit_log_" + end_time + ".csv"
 
     file_list = get_files(output_dir, ".zip")
-    # print(file_list)
     zi = 0
     for z_files in file_list:
-        zip_file = output_dir + file_list[zi]
+        zip_file = output_dir + z_files
         # zip_file_crc = output_dir + file_list[zi + 1]
         if zip_file.endswith('.zip'):
-            with zipfile.ZipFile(output_dir + file_list[zi], 'r') as zip_ref:
+            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
                 zip_ref.extractall(output_dir)
-            os.remove(zip_file)
-            # os.remove(zip_file_crc)
-            zi = zi + 1
+        os.remove(zip_file)
+
     file_list = get_files(output_dir, ".JSON")
     num_profiles = len(file_list)
     output_file = open(output_filename, output_type)
-    output_file.write("job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "error" + delim + "user_name" + delim + "query_type" + delim + "source_num" + delim + "parent_name_list" + delim + "table_name_list" + delim + "column_name_list" + '\n')
+    output_file.write(
+        "job_id" + delim + "start_time" + delim + "end_time" + delim + "job_state" + delim + "error" + delim + "user_name" + delim + "query_type" + delim + "source_num" + delim + "parent_name_list" + delim + "table_name_list" + delim + "column_name_list" + '\n')
     l = 0
+    print (num_profiles)
     for f_profile in file_list:
         l = l + 1
         output_str = ""
@@ -121,7 +124,7 @@ def main():
             job_state = 'Unknown'
         try:
             verbose_error = "[]"
-#            verbose_error = str(data["verboseError"])
+        #            verbose_error = str(data["verboseError"])
         except:
             verbose_error = "[]"
         try:
@@ -138,22 +141,29 @@ def main():
                 xs = x["plan"].splitlines()
                 parent_fl = 1
                 data_source_num = 1
-                parent_name_list = "["
+                parent_name_list = []
                 for xsr in xs:
-                    if "ExpansionNode(path=" in xsr.strip() and parent_fl == 1: # this is first level parent (VDS or PDS)
+                    if "ExpansionNode(path=" in xsr.strip() and parent_fl == 1:  # this is first level parent (VDS or PDS)
                         query_def = xsr.strip()
-                        parent_name_list = re.search(r'path=(.+?)]', query_def).group(1)  # return parent vds name
+                        parent_name_list.append(re.search(r'path=\[(.+?)]', query_def).group(1))  # return parent vds name
                         parent_fl = 0
+                    if "LogicalProject(" in xsr.strip():
+                        # for p_xsr in print xsr.strip()
+                        col_list = re.findall(r'\[\$([^]]+)\]', xsr)
                     if "table=[" in xsr.strip():
-                        parent_name_list = parent_name_list + "]"
                         query_def = xsr.strip()
                         table_name_list = re.search('table=(.+?)],', query_def).group(1) + ']'
-                        column_name_list = re.search('columns=(.+?)],', query_def).group(1) + ']'
-                        output_str = output_str + job_id + delim + j_start_time + delim + j_end_time + delim + job_state + delim + verbose_error + delim + j_user_name + delim + str(query_type) + delim + str(data_source_num) + delim + str(parent_name_list) + delim + str(table_name_list) + delim + str(column_name_list) + '\n'
+                        column_name_str = re.search('columns=\[(.+?)],', query_def).group(1).replace("`","").split(', ')
+                        column_name_list = []
+                        for i in col_list: column_name_list.append(column_name_str[int(i)])
+                        output_str = output_str + job_id + delim + j_start_time + delim + j_end_time + delim + job_state + delim + verbose_error + delim + j_user_name + delim + str(
+                            query_type) + delim + str(data_source_num) + delim + str(parent_name_list) + delim + str(
+                            table_name_list) + delim + str(column_name_list) + '\n'
                         data_source_num = data_source_num + 1
                         parent_fl = 1
-                        parent_name_list = ""
+                        parent_name_list = []
         output_file.write(output_str)
+        os.remove(os.path.join(output_dir, f_profile))
 
     output_log_file = open(output_log, "a")
     output_log_file.write(str(num_profiles) + delim + start_time + delim + end_time + '\n')
@@ -194,6 +204,7 @@ def print_usage():
            '     Specifies how we should handle a case, when target file already exists.\n'
            '     Default: OVERWRITE Possible Values: [FAIL_IF_EXISTS, OVERWRITE, SKIP]\n')
 
+
 def set_times_from_log(log_file):
     if os.path.exists(log_file):
         with open(log_file, 'r') as lf:
@@ -206,14 +217,19 @@ def set_times_from_log(log_file):
         output_log_file.write('num_profiles' + delim + 'start_time' + delim + 'end_time' + '\n')
         last_end_time = start_time
         output_log_file.close()
-    return (last_end_time)
+    return last_end_time
+
 
 def update_output(output_dir, filename):
     return os.path.join(output_dir, filename) if filename else None
 
+
 def get_files(output_dir, f_type):
-    only_files = [f for f in os.listdir(output_dir) if os.path.isfile(os.path.join(output_dir, f)) and f.endswith(f_type)]
+    only_files = [f for f in os.listdir(output_dir) if
+                  os.path.isfile(os.path.join(output_dir, f)) # and f.endswith(f_type)
+                  ]
     return only_files
+
 
 def get_dir(output_dir):
     only_dir = [d for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
@@ -228,13 +244,17 @@ def file_disk(output_dir, filename):
 
 def export_profiles():
     if connection_type == '-l':
-        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-l ", " --output", profiles_dir], stdout=subprocess.PIPE)
+        ret_val = subprocess.Popen(
+            [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-l ",
+             " --output", profiles_dir], stdout=subprocess.PIPE)
         ret_val.wait()
     else:
-        ret_val = subprocess.Popen([dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u ", username, "-p ", password, " --output", profiles_dir], stdout=subprocess.PIPE)
+        ret_val = subprocess.Popen(
+            [dremio_bin_dir + "dremio-admin", "export-profiles", "--from ", start_time, "--to ", end_time, "-u ",
+             username, "-p ", password, " --output", profiles_dir], stdout=subprocess.PIPE)
         ret_val.wait()
         ret_string = ret_val.communicate()[0]
-    return profiles_dir + get_dir(profiles_dir)[0]+ '/'
+    return profiles_dir + get_dir(profiles_dir)[0] + '/'
 
 
 if __name__ == "__main__":
