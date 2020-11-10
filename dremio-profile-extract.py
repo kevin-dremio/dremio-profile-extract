@@ -109,7 +109,7 @@ def main():
         # j_end_time = str(data["end"])
         # j_end_time = datetime.datetime.fromtimestamp(data["end"]/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
         j_end_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["end"] / 1000.0))
-        j_end_time = str(data["end"])
+        # j_end_time = str(data["end"])
         job_state_num = data["state"]
         if job_state_num == 2:
             job_state = 'Completed'
