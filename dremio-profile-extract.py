@@ -108,10 +108,10 @@ def main():
         job_id = re.search('profile_(.+?).JSON', f_profile).group(1)
         j_user_name = data["user"]
         # j_start_time = str(data["start"])
-        j_start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["start"] / 1000.0))
+        j_start_time = time.strftime('%Y-%m-%d %I:%M:%S %p %Z', time.localtime(data["start"] / 1000.0))
         # j_end_time = str(data["end"])
         # j_end_time = datetime.datetime.fromtimestamp(data["end"]/1000).strftime('%Y-%m-%d %H:%M:%S.%f')
-        j_end_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(data["end"] / 1000.0))
+        j_end_time = time.strftime('%Y-%m-%d %I:%M:%S %p %Z', time.localtime(data["end"] / 1000.0))
         # j_end_time = str(data["end"])
         job_state_num = data["state"]
         if job_state_num == 2:
@@ -153,7 +153,10 @@ def main():
                     if "table=[" in xsr.strip():
                         query_def = xsr.strip()
                         table_name_list = re.search('table=(.+?)],', query_def).group(1) + ']'
-                        column_name_str = re.search('columns=\[(.+?)],', query_def).group(1).replace("`","").split(', ')
+                        try:
+                            column_name_str = re.search('columns=\[(.+?)],', query_def).group(1).replace("`","").split(', ')
+                        except:
+                            column_name_str = ""
                         column_name_list = []
                         for i in col_list: column_name_list.append(column_name_str[int(i)])
                         output_str = output_str + job_id + delim + j_start_time + delim + j_end_time + delim + job_state + delim + verbose_error + delim + j_user_name + delim + str(
